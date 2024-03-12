@@ -6,7 +6,7 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils, lib, nix-update-script }:
+  outputs = { self, nixpkgs, flake-utils }:
     let
       system = "aarch64-darwin";
       pkgs = nixpkgs.legacyPackages."${system}";
@@ -30,7 +30,7 @@
           pkgs.nss
         ];
 
-        runtimeDependencies = [ (lib.getLib pkgs.systemd) ];
+        runtimeDependencies = [ (pkgs.lib.getLib pkgs.systemd) ];
 
         installPhase = ''
           runHook preInstall
@@ -47,13 +47,31 @@
             --replace "/opt/Bruno/bruno" "$out/bin/bruno"
         '';
 
-        passthru.updateScript = nix-update-script { };
       };
       brunoAarch64Darwin = pkgs.stdenv.mkDerivation {
         name = "bruno";
         version = "${version}";
         src = pkgs.fetchurl {
           url = "https://github.com/usebruno/bruno/releases/download/v${version}/bruno_${version}_arm64_mac.zip";
+          hash = "sha256-vCdDoY3cKpBfkS0c5MoFRmcyZ5Rs2+9U89j+DdG4ugw=";
+        };
+
+        buildInputs = [ pkgs.unzip ];
+
+        installPhase = ''
+          mkdir -p "$out/Applications/Bruno.app"
+          cp -r . $out/Applications/Bruno.app
+          mkdir -p "$out/bin"
+          echo "#!/usr/bin/env zsh" > $out/bin/bruno
+          echo "open -n $out/Applications/Bruno.app" >> $out/bin/bruno
+          chmod a+x $out/bin/bruno
+        '';
+      };
+      brunoX8664Darwin = pkgs.stdenv.mkDerivation {
+        name = "bruno";
+        version = "${version}";
+        src = pkgs.fetchurl {
+          url = "https://github.com/usebruno/bruno/releases/download/v${version}/bruno_${version}_x64_mac.zip";
           hash = "sha256-vCdDoY3cKpBfkS0c5MoFRmcyZ5Rs2+9U89j+DdG4ugw=";
         };
 
@@ -79,6 +97,8 @@
 
       packages."aarch64-darwin".bruno = brunoAarch64Darwin;
       defaultPackage."aarch64-darwin" = brunoAarch64Darwin;
+      packages."x86_64-darwin".bruno = brunoX8664Darwin;
+      defaultPackage."x86_64-darwin" = brunoX8664Darwin;
       packages."x86_64-linux".bruno = brunoX8664Linux;
       defaultPackage."x86_64-linux" = brunoX8664Linux;
     };
