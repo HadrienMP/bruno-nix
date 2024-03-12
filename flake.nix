@@ -6,11 +6,49 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, lib, nix-update-script }:
     let
       system = "aarch64-darwin";
       pkgs = nixpkgs.legacyPackages."${system}";
       version = "1.10.0";
+      brunoX8664Linux = pkgs.stdenv.mkDerivation {
+        name = "bruno";
+        version = "1.1.1";
+
+        src = pkgs.fetchurl {
+          url = "https://github.com/usebruno/bruno/releases/download/v${version}/bruno_${version}_amd64_linux.deb";
+          hash = "sha256-lG5OMxDS7I2jmI6syWzTsHm/NEoGanilW8IPebs+/10=";
+        };
+
+        nativeBuildInputs = [ pkgs.autoPatchelfHook pkgs.dpkg pkgs.wrapGAppsHook ];
+
+        buildInputs = [
+          pkgs.alsa-lib
+          pkgs.gtk3
+          pkgs.mesa
+          pkgs.nspr
+          pkgs.nss
+        ];
+
+        runtimeDependencies = [ (lib.getLib pkgs.systemd) ];
+
+        installPhase = ''
+          runHook preInstall
+          mkdir -p "$out/bin"
+          cp -R opt $out
+          cp -R "usr/share" "$out/share"
+          ln -s "$out/opt/Bruno/bruno" "$out/bin/bruno"
+          chmod -R g-w "$out"
+          runHook postInstall
+        '';
+
+        postFixup = ''
+          substituteInPlace "$out/share/applications/bruno.desktop" \
+            --replace "/opt/Bruno/bruno" "$out/bin/bruno"
+        '';
+
+        passthru.updateScript = nix-update-script { };
+      };
       brunoAarch64Darwin = pkgs.stdenv.mkDerivation {
         name = "bruno";
         version = "${version}";
@@ -39,7 +77,9 @@
         ];
       };
 
-      packages."${system}".bruno = brunoAarch64Darwin;
-      defaultPackage."${system}" = brunoAarch64Darwin;
+      packages."aarch64-darwin".bruno = brunoAarch64Darwin;
+      defaultPackage."aarch64-darwin" = brunoAarch64Darwin;
+      packages."x86_64-linux".bruno = brunoX8664Linux;
+      defaultPackage."x86_64-linux" = brunoX8664Linux;
     };
 }
